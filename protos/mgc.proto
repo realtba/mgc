@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package mgc;
+
+service Game{
+  //  rpc Tables() returns () {}
+  //  rpc Sitdown() returns () {}
+  rpc Connect(ConnectRequest) returns (ConnectResponse) {}
+  rpc Interact(InteractRequest) returns (InteractResponse) {}
+  rpc Listen(ListenRequest) returns (stream ListenResponse) {}
+}
+
+
+message ConnectRequest{
+
+}
+
+message ListenRequest{
+  string uuid = 1;
+}
+
+message InteractRequest{
+  string uuid = 1;
+  Event event = 2;
+}
+
+
+message ConnectResponse{
+  string uuid = 1;
+}
+
+message ListenResponse{
+  Event event = 1;
+}
+
+message InteractResponse{
+
+}
+
+message Event{
+  oneof type {
+    MoveCard moveCard = 1;
+    string dummt  = 2;
+  }
+  message MoveCard{
+    float x = 1;
+    float y = 2;
+ };
+}
+
+/*
+message Player {
+  string uuid = 1;
+  string name = 2;
+}
+
+message Table {
+  string uid = 1;
+  playerA Player = 2;
+  playerB Player = 3;
+}
+
+message Tables {
+  repeated free Table = 1;
+  repeated full Table = 2;
+}
+
+message Empty {
+}
+
+message Action {
+  Player self = 1;
+  Event event = 2;
+}
+
+
+
+message Card {
+  string  image = 1;
+  bool    tapped = 2;
+  string  uuid = 3;
+  Position position =4;
+}
+
+message Position {
+  float x = 1;
+  float y = 2;
+}
+*/
