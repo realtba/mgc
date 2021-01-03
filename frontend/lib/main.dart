@@ -1,62 +1,90 @@
 import 'package:flutter/material.dart';
-import 'package:grpc/grpc_web.dart';
-import 'src/generated/mgc.pb.dart';
-import 'src/generated/mgc.pbgrpc.dart';
 
-void main() {
-  final c = new Client();
-  final myApp = new MyApp();
-  c.run();
-
-  runApp(myApp);
+void main() async {
+  runApp(new MGC());
 }
 
-class MyApp extends StatelessWidget {
+class MGC extends StatelessWidget {
+  MGC();
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        body: App(),
-      ),
-    );
+    return App();
   }
 }
 
 class App extends StatefulWidget {
+  App();
   @override
   AppState createState() => AppState();
 }
 
 class AppState extends State<App> {
-  Color caughtColor = Colors.grey;
+  List<Item> items;
+  AppState() {
+    this.items = new List<Item>();
+  }
+  bool showGravyard;
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    var stack = Stack(
       children: <Widget>[
-        DragBox(Offset(300.0, 0.0), 'Black Lotus', Colors.lightGreen),
+        for (var item in this.items)
+          if (!item.graveyard)
+            StatelessCard(
+                item.position,
+                item.tapped,
+                (offset, tapped, graveyard) => setState(() {
+                      item.position = offset;
+                      item.tapped = tapped;
+                      item.graveyard = graveyard;
+                    })),
+        Graveyard(
+          () => setState(() {
+            this.showGravyard = true;
+          }),
+        ),
       ],
+    );
+    return MaterialApp(
+      home: Scaffold(
+        body: stack,
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () {
+            setState(() {
+              this.items.add(Item(Offset(0, 0), false));
+            });
+          },
+          label: Text('Draw'),
+          icon: Icon(Icons.bolt),
+          backgroundColor: Colors.blue,
+        ),
+      ),
     );
   }
 }
 
-class DragBox extends StatefulWidget {
-  final Offset initPos;
-  final String label;
-  final Color itemColor;
-
-  DragBox(this.initPos, this.label, this.itemColor);
-
-  @override
-  DragBoxState createState() => DragBoxState();
+class Item extends ChangeNotifier {
+  Item(Offset position, bool tapped)
+      : position = position,
+        tapped = tapped;
+  Offset position;
+  bool tapped;
+  bool graveyard;
 }
 
-class DragBoxState extends State<DragBox> {
-  Offset position = Offset(0.0, 0.0);
+typedef SetItemState = void Function(
+    Offset position, bool tapped, bool graveyard);
 
-  @override
-  void initState() {
-    super.initState();
-    position = widget.initPos;
+class StatelessCard extends StatelessWidget {
+  final Offset position;
+  final SetItemState _setItemState;
+  final bool tapped;
+  StatelessCard(Offset position, bool tapped, SetItemState _setItemState)
+      : position = position,
+        tapped = tapped,
+        _setItemState = _setItemState;
+  graveyard(bool graveyard) {
+    this._setItemState(this.position, this.tapped, graveyard);
   }
 
   @override
@@ -65,54 +93,64 @@ class DragBoxState extends State<DragBox> {
         left: position.dx,
         top: position.dy,
         child: Draggable(
-          data: widget.itemColor,
-          child: Image.network(
-            "https://static.cardmarket.com/img/fcdc85fba3aee623de0f2df08bb8c1eb/items/1/2ED/5093.jpg",
-            scale: 1.75,
+          child: GestureDetector(
+            onTap: () {
+              this._setItemState(this.position, !this.tapped, false);
+            },
+            onDoubleTap: () {},
+            child: RotatedBox(
+              quarterTurns: this.tapped == true ? 1 : 0,
+              child: Image.network(
+                "https://static.cardmarket.com/img/fcdc85fba3aee623de0f2df08bb8c1eb/items/1/2ED/5093.jpg",
+                height: 200,
+                width: 100,
+              ),
+            ),
           ),
           onDraggableCanceled: (velocity, offset) {
-            setState(() {
-              position = offset;
-              //FIXME(BJ) how do I send commands to the client?
-            });
+            this._setItemState(offset, this.tapped, false);
           },
           feedback: Container(
             child: Image.network(
-                "https://static.cardmarket.com/img/fcdc85fba3aee623de0f2df08bb8c1eb/items/1/2ED/5093.jpg",
-                scale: 1.75,
-                color: Color.fromRGBO(255, 255, 255, 0.1),
-                colorBlendMode: BlendMode.modulate),
+              "https://static.cardmarket.com/img/fcdc85fba3aee623de0f2df08bb8c1eb/items/1/2ED/5093.jpg",
+              height: 200,
+              width: 100,
+            ),
           ),
         ));
   }
 }
 
-class Client {
-  GameClient stub;
-  String uuid;
-  Future<void> run() async {
-    final channel = GrpcWebClientChannel.xhr(Uri.http('localhost:9090', ""));
-    channel.createConnection();
-    stub = GameClient(channel);
-    await runConnect();
-    await listen();//FIXME(BJ) how do update the widgets?
-    await channel.shutdown();
-  }
+typedef OpenGraveyard = void Function();
 
-  Future<void> runConnect() async {
-    final res = await stub.connect(ConnectRequest());
-    this.uuid = res.uuid;
-  }
-
-  void execute(Event e) {
-    // todo
-  }
-
-  Future<void> listen() async {
-    final req = ListenRequest();
-    req.uuid = this.uuid;
-    await for (var res in stub.listen(req)) {
-      execute(res.event);
-    }
+class Graveyard extends StatelessWidget {
+  final OpenGraveyard open;
+  Graveyard(OpenGraveyard open) : open = open;
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget(
+      builder: (context, List<String> candidateData, rejectedData) {
+        return GestureDetector(
+          onTap: () {
+            this.open();
+          },
+          child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Padding(
+                padding: EdgeInsets.only(
+                    top: 10.0, left: 10.0, right: 10.0, bottom: 10.0),
+                child: Container(
+                  color: Colors.black,
+                  height: 150.0,
+                  width: 150.0,
+                ),
+              )),
+        );
+      },
+      onWillAccept: (data) {
+        return true;
+      },
+      onAccept: (StatelessCard card) {},
+    );
   }
 }
